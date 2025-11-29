@@ -9,7 +9,7 @@ services:
     command: redis-server --save "" --appendonly no
     networks:
       - redis-net
-    cpus: 1
+    cpus: 2
     mem_limit: 512m
 
   redis-benchmark:

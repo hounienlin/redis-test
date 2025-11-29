@@ -6,7 +6,9 @@
       "Bash(docker compose:*)",
       "Bash(docker:*)",
       "Bash(./continuous-load.sh)",
-      "Bash(git init:*)"
+      "Bash(git init:*)",
+      "Bash(git push:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []

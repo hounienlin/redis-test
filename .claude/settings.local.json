@@ -14,7 +14,8 @@
       "Bash(for i in {1..5})",
       "Bash(do)",
       "Bash(done)",
-      "Bash(for:*)"
+      "Bash(for:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []

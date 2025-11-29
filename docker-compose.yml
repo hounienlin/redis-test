@@ -65,6 +65,37 @@ services:
         echo 'Benchmark complete. Monitor CPU usage on redis container to verify single-core usage.';
       "
 
+  redis-continuous-benchmark:
+    image: redis:7-alpine
+    container_name: redis-continuous-benchmark
+    depends_on:
+      - redis
+    networks:
+      - redis-net
+    command: >
+      sh -c "
+        echo 'Waiting for Redis to be ready...';
+        sleep 2;
+        echo '';
+        echo '=== Starting Continuous Benchmark Load ===';
+        echo 'This will run 5 concurrent benchmarks indefinitely';
+        echo 'Expected CPU: ~100% (single core saturation)';
+        echo 'Monitor with: docker stats redis-server';
+        echo 'Stop with: docker compose down';
+        echo '';
+
+        # Run 5 concurrent benchmarks in background
+        while true; do
+          redis-benchmark -h redis -p 6379 -t set,get -n 50000 -c 50 -d 256 -q &
+          redis-benchmark -h redis -p 6379 -t lpush,lpop -n 50000 -c 50 -d 256 -q &
+          redis-benchmark -h redis -p 6379 -t set,get -n 50000 -c 50 -d 256 -q &
+          redis-benchmark -h redis -p 6379 -t lpush,lpop -n 50000 -c 50 -d 256 -q &
+          redis-benchmark -h redis -p 6379 -t set,get -n 50000 -c 50 -d 256 -q &
+          wait;
+          sleep 0.5;
+        done
+      "
+
 networks:
   redis-net:
     driver: bridge

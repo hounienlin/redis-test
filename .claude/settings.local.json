@@ -8,7 +8,13 @@
       "Bash(./continuous-load.sh)",
       "Bash(git init:*)",
       "Bash(git push:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nAdd multi-core CPU allocation test results\n\nAdd comprehensive test demonstrating that Redis cannot utilize multiple CPU cores despite allocation. Test confirms single-threaded architecture.\n\nChanges:\n- Add MULTI_CORE_TEST.md with detailed 2-core allocation test results\n- Update docker-compose.yml to allocate 2 CPU cores to Redis\n- Include empirical CPU measurements showing ~100% usage (1 core) despite 2 cores available\n\nKey findings:\n- CPU usage remained at ~100% with 2 cores allocated (vs ~100% with 1 core)\n- No performance improvement observed\n- Definitively proves Redis single-threaded bottleneck\n- Second CPU core completely unused during heavy load\n\nTest methodology:\n- 10 concurrent benchmark processes\n- 15 CPU samples during sustained load\n- Average CPU: 100.6% (only 1 core utilized)\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git remote set-url:*)",
+      "Bash(for i in {1..5})",
+      "Bash(do)",
+      "Bash(done)",
+      "Bash(for:*)"
     ],
     "deny": [],
     "ask": []

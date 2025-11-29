@@ -1,0 +1,17 @@
+# Redis data
+dump.rdb
+appendonly.aof
+
+# Docker
+.docker/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

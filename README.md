@@ -198,12 +198,18 @@ docker-compose -f docker-compose.redis5.yml down
 
 ## Documentation
 
+### Testing and Performance
 - **README.md** - This file, quick start and overview
 - **VERSION_COMPARISON.md** - Detailed Redis 5 vs Redis 6 performance comparison
-- **TEST_REPORT.md** - Comprehensive testing report for Redis 7
+- **TEST_REPORT.md** - Comprehensive testing report for Redis 5, 6, and 7
 - **MULTI_CORE_TEST.md** - Multi-core CPU allocation test results
-- **REDIS_SIZING_GUIDE.md** - General Redis sizing strategies
-- **CLUSTER_SIZING_GUIDE.md** - Redis cluster sizing and architecture
+
+### Sizing and Architecture Guides
+- **POD_SIZING_STRATEGY.md** - ⭐ **Pod memory sizing best practices** (32GB vs 64GB vs 128GB)
+- **REDIS_SIZING_GUIDE.md** - General Redis sizing strategies for Kubernetes
+- **CLUSTER_SIZING_GUIDE.md** - Redis cluster sizing and architecture for Kubernetes
 - **SIZING_FOR_8K_QPS_1MB.md** - Specific sizing example for 8K QPS with 1MB values
 - **SIZING_1TB_IMAGE_CACHE.md** - Sizing example for 1TB image cache
+
+### Development
 - **CLAUDE.md** - Project guidance for Claude Code

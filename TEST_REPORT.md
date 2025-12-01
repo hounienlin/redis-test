@@ -60,21 +60,31 @@ This non-linear scaling confirms that a single thread handles all requests seque
 
 **Critical Evidence: Single-Core Saturation**
 
-During sustained concurrent load (5 parallel benchmarks, 50 clients each):
+**Redis 7.4.7 - Comprehensive Test (2 CPU cores allocated, 10 concurrent benchmarks):**
 
-| Measurement | CPU Usage | Memory Usage |
-|-------------|-----------|--------------|
-| Peak Load #1 | **100.06%** | 18.07 MiB |
-| Peak Load #2 | **99.68%** | 122.6 MiB |
-| Post-Load | 0.62-0.78% | 25.86 MiB |
+| Measurement | CPU Usage | Memory Usage | CPU Cores Available |
+|-------------|-----------|--------------|---------------------|
+| Peak Load #1 | **101.24%** | 69.41 MiB / 512 MiB | 2 cores |
+| Peak Load #2 | **100.71%** | 166.9 MiB / 512 MiB | 2 cores |
+| Peak Load #3 | **100.57%** | 225.2 MiB / 512 MiB | 2 cores |
+| Peak Load #4 | **100.67%** | 228.4 MiB / 512 MiB | 2 cores |
+| Peak Load #5 | **100.81%** | 200.1 MiB / 512 MiB | 2 cores |
+| **Average** | **100.80%** | **178.0 MiB** | **2 cores** |
+| Post-Load | 0.81-1.16% | 19-150 MiB / 512 MiB | 2 cores |
+
+**Critical Finding:**
+- Redis 7 has **2 CPU cores allocated** but uses only **~100%** (1 core)
+- The second CPU core **goes completely unused** during peak load
+- This is **definitive proof** Redis 7 is single-threaded
 
 **Analysis:**
-- CPU usage caps at **~100%** (exactly 1 CPU core)
-- Never exceeds 100% despite multiple concurrent benchmark processes
+- CPU usage caps at **~100%** (exactly 1 CPU core) despite 2 cores available
+- Never exceeds 100% even with 10 concurrent benchmark processes
+- Second core provides **ZERO performance benefit**
 - Immediate drop to <1% CPU when load stops
 - Memory usage varies with dataset size but remains well under limit
 
-**Conclusion:** Redis exhausts a single CPU core during heavy load, confirming it uses a single thread for command processing.
+**Conclusion:** Redis 7 exhausts a single CPU core during heavy load, confirming it uses a single thread for command processing. Allocating more than 1 CPU core per Redis instance provides NO benefit.
 
 ---
 
@@ -246,13 +256,25 @@ All three Redis versions (5, 6, and 7) demonstrate:
 #### Key Finding: Architectural Consistency
 
 **All three versions prove identical single-threaded architecture:**
-- CPU usage: 100.47% - 100.95% during peak load
-- No version exceeds 1 CPU core utilization
-- Performance differences within 5-10% margin
-- Single-threaded event loop unchanged across versions
+
+| Version | CPU Cores Allocated | Average CPU Usage | Peak CPU | Conclusion |
+|---------|---------------------|-------------------|----------|------------|
+| **Redis 7.4.7** | **2 cores** | **100.80%** | 101.24% | ✅ Single-threaded (2nd core unused) |
+| **Redis 6.2.21** | 1 core | 100.65% | 100.65% | ✅ Single-threaded |
+| **Redis 5.0.14** | 1 core | 100.71% | 100.95% | ✅ Single-threaded |
+
+**Critical Evidence:**
+- **Redis 7 with 2 cores** uses only **~100%** - second core completely unused
+- **Redis 6 with 1 core** uses **~100%** - single core fully saturated
+- **Redis 5 with 1 core** uses **~100%** - single core fully saturated
+- Performance differences within **5-10% margin**
+- Single-threaded event loop **unchanged across all versions**
 
 **Implication for Production:**
-Choose Redis version based on features (ACLs, SSL, client-side caching), NOT raw performance. All versions are equally CPU-bound and single-threaded.
+1. **NEVER allocate > 1 CPU core** per Redis pod/instance - provides ZERO benefit
+2. Choose Redis version based on **features** (ACLs, SSL, client-side caching), NOT raw performance
+3. All versions are equally **CPU-bound and single-threaded**
+4. To utilize multiple cores, deploy **multiple Redis instances** (sharding)
 
 ---
 

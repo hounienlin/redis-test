@@ -27,7 +27,8 @@ The setup uses Docker Compose with two services:
 # Start Redis 7 and run all benchmarks (default)
 docker-compose up
 
-# Test specific Redis versions
+# Test specific Redis versions (version-specific compose files)
+docker-compose -f docker-compose.redis7.yml up --abort-on-container-exit  # Redis 7 (2 cores)
 docker-compose -f docker-compose.redis6.yml up --abort-on-container-exit  # Redis 6
 docker-compose -f docker-compose.redis5.yml up --abort-on-container-exit  # Redis 5
 
@@ -46,6 +47,7 @@ docker run --rm --network redis-test_redis-net redis:7-alpine \
 
 # Stop all containers
 docker-compose down
+docker-compose -f docker-compose.redis7.yml down
 docker-compose -f docker-compose.redis6.yml down
 docker-compose -f docker-compose.redis5.yml down
 ```

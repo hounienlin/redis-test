@@ -321,28 +321,42 @@ redis-server --save "" --appendonly no
 
 ### Key Takeaways
 
-1. **Performance Parity:** Redis 5 and Redis 6 perform nearly identically in benchmarks
-2. **Single-Threaded Bottleneck:** Both versions show the same architectural limitation
-3. **Feature vs Performance:** Choose Redis 6 for features, not raw performance
-4. **Pipelining Essential:** Both versions require pipelining for maximum throughput
-5. **Version Upgrade Safe:** Upgrading from Redis 5 to 6 has no performance penalty
+1. **Performance Parity:** Redis 5, 6, and 7 perform nearly identically in benchmarks (within 5-10%)
+2. **Single-Threaded Bottleneck:** All three versions show the same architectural limitation
+3. **Redis 7 Proof:** Testing with 2 CPU cores proves definitively that Redis is single-threaded
+4. **Feature vs Performance:** Choose version based on features and support, not raw performance
+5. **Pipelining Essential:** All versions require pipelining for maximum throughput (8-9x improvement)
+6. **Version Upgrade Safe:** Upgrading across versions has minimal performance impact
 
 ### Final Recommendation
 
-**Use Redis 6.2.21** for new deployments:
+**Use Redis 7.4.7** ✅ for new deployments:
+- Latest features (Redis Functions, RedisJSON, RedisSearch)
+- Enhanced security (ACL v2)
+- Active development and long-term support
+- Most balanced performance
+- No performance disadvantage vs older versions
+
+**Use Redis 6.2.21** for existing deployments:
+- Proven in production
+- Good stepping stone from Redis 5
 - Modern security features (ACLs, SSL)
-- Active maintenance and updates
-- Future-proof architecture
-- No performance disadvantage
+- Active maintenance
 
 **Keep Redis 5** only if:
 - Legacy compatibility required
-- No need for Redis 6 features
+- No need for newer features
 - Avoiding migration costs
+- Note: EOL approaching, plan upgrade path
 
 ---
 
 ## Appendix: Running the Tests
+
+### Test Redis 7 (with 2 CPU cores - proves single-threaded)
+```bash
+docker-compose -f docker-compose.redis7.yml up --abort-on-container-exit
+```
 
 ### Test Redis 6
 ```bash
@@ -356,6 +370,7 @@ docker-compose -f docker-compose.redis5.yml up --abort-on-container-exit
 
 ### Cleanup
 ```bash
+docker-compose -f docker-compose.redis7.yml down
 docker-compose -f docker-compose.redis6.yml down
 docker-compose -f docker-compose.redis5.yml down
 ```

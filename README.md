@@ -27,6 +27,9 @@ docker compose down
 
 ### Option 3: Version Comparison Testing
 ```bash
+# Test Redis 7 (with 2 CPU cores to prove single-threaded)
+docker-compose -f docker-compose.redis7.yml up --abort-on-container-exit
+
 # Test Redis 6
 docker-compose -f docker-compose.redis6.yml up --abort-on-container-exit
 
@@ -189,10 +192,9 @@ docker run --rm --network redis-test_redis-net redis:7-alpine \
 # Default Redis 7
 docker-compose down
 
-# Redis 6
+# Version-specific cleanup
+docker-compose -f docker-compose.redis7.yml down
 docker-compose -f docker-compose.redis6.yml down
-
-# Redis 5
 docker-compose -f docker-compose.redis5.yml down
 ```
 

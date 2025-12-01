@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:6-alpine
+    container_name: redis6-server
+    ports:
+      - "6379:6379"
+    command: redis-server --save "" --appendonly no
+    networks:
+      - redis-net
+    cpus: 1
+    mem_limit: 512m
+
+  redis-benchmark:
+    image: redis:6-alpine
+    container_name: redis6-benchmark
+    depends_on:
+      - redis
+    networks:
+      - redis-net
+    command: >
+      sh -c "
+        echo 'Waiting for Redis to be ready...';
+        sleep 2;
+
+        echo '=== Redis 6 Performance Testing ===';
+        redis-cli -h redis -p 6379 INFO server | grep redis_version;
+        echo '';
+
+        echo '=== Basic Benchmark - SET operations ===';
+        redis-benchmark -h redis -p 6379 -t set -n 100000 -c 50 -d 256 --csv;
+
+        echo '';
+        echo '=== Basic Benchmark - GET operations ===';
+        redis-benchmark -h redis -p 6379 -t get -n 100000 -c 50 -d 256 --csv;
+
+        echo '';
+        echo '=== Testing with different client counts (showing single-thread bottleneck) ===';
+        echo 'With 1 client:';
+        redis-benchmark -h redis -p 6379 -t set,get -n 50000 -c 1 -d 256 -q;
+
+        echo '';
+        echo 'With 10 clients:';
+        redis-benchmark -h redis -p 6379 -t set,get -n 50000 -c 10 -d 256 -q;
+
+        echo '';
+        echo 'With 50 clients:';
+        redis-benchmark -h redis -p 6379 -t set,get -n 50000 -c 50 -d 256 -q;
+
+        echo '';
+        echo 'With 100 clients:';
+        redis-benchmark -h redis -p 6379 -t set,get -n 50000 -c 100 -d 256 -q;
+
+        echo '';
+        echo '=== CPU-intensive operations (LPUSH/LPOP) ===';
+        redis-benchmark -h redis -p 6379 -t lpush,lpop -n 100000 -c 50 -d 256 --csv;
+
+        echo '';
+        echo '=== Pipelining test (shows batching benefits) ===';
+        echo 'Without pipelining:';
+        redis-benchmark -h redis -p 6379 -t set,get -n 50000 -c 50 -P 1 -q;
+
+        echo '';
+        echo 'With pipelining (16 commands):';
+        redis-benchmark -h redis -p 6379 -t set,get -n 50000 -c 50 -P 16 -q;
+
+        echo '';
+        echo 'Redis 6 Benchmark complete.';
+      "
+
+networks:
+  redis-net:
+    driver: bridge

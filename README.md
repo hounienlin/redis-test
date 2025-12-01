@@ -25,6 +25,18 @@ docker stats redis-server
 docker compose down
 ```
 
+### Option 3: Version Comparison Testing
+```bash
+# Test Redis 6
+docker-compose -f docker-compose.redis6.yml up --abort-on-container-exit
+
+# Test Redis 5
+docker-compose -f docker-compose.redis5.yml up --abort-on-container-exit
+
+# See detailed comparison results
+cat VERSION_COMPARISON.md
+```
+
 ## What This Tests
 
 ### 1. Single-Threaded Nature
@@ -36,6 +48,12 @@ docker compose down
 - Redis performance is limited by CPU speed, not I/O
 - Operations are in-memory, so disk I/O is not a bottleneck
 - The benchmark tests various operations to show CPU utilization
+
+### 3. Version Performance Comparison
+- Compare Redis 5, Redis 6, and Redis 7 under identical conditions
+- All versions demonstrate the same single-threaded architecture
+- Performance differences are minimal (< 5%) across versions
+- See `VERSION_COMPARISON.md` for detailed analysis
 
 ## Understanding the Benchmarks
 
@@ -168,5 +186,24 @@ docker run --rm --network redis-test_redis-net redis:7-alpine \
 ## Cleanup
 
 ```bash
+# Default Redis 7
 docker-compose down
+
+# Redis 6
+docker-compose -f docker-compose.redis6.yml down
+
+# Redis 5
+docker-compose -f docker-compose.redis5.yml down
 ```
+
+## Documentation
+
+- **README.md** - This file, quick start and overview
+- **VERSION_COMPARISON.md** - Detailed Redis 5 vs Redis 6 performance comparison
+- **TEST_REPORT.md** - Comprehensive testing report for Redis 7
+- **MULTI_CORE_TEST.md** - Multi-core CPU allocation test results
+- **REDIS_SIZING_GUIDE.md** - General Redis sizing strategies
+- **CLUSTER_SIZING_GUIDE.md** - Redis cluster sizing and architecture
+- **SIZING_FOR_8K_QPS_1MB.md** - Specific sizing example for 8K QPS with 1MB values
+- **SIZING_1TB_IMAGE_CACHE.md** - Sizing example for 1TB image cache
+- **CLAUDE.md** - Project guidance for Claude Code

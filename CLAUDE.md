@@ -24,8 +24,12 @@ The setup uses Docker Compose with two services:
 ## Common Commands
 
 ```bash
-# Start Redis and run all benchmarks
+# Start Redis 7 and run all benchmarks (default)
 docker-compose up
+
+# Test specific Redis versions
+docker-compose -f docker-compose.redis6.yml up --abort-on-container-exit  # Redis 6
+docker-compose -f docker-compose.redis5.yml up --abort-on-container-exit  # Redis 5
 
 # Start Redis in background without running benchmarks
 docker-compose up -d redis
@@ -42,6 +46,8 @@ docker run --rm --network redis-test_redis-net redis:7-alpine \
 
 # Stop all containers
 docker-compose down
+docker-compose -f docker-compose.redis6.yml down
+docker-compose -f docker-compose.redis5.yml down
 ```
 
 ## Key Testing Insights
@@ -50,6 +56,17 @@ docker-compose down
 - **Client scaling**: Throughput increases with concurrent clients but plateaus due to single-threaded bottleneck
 - **CPU-bound proof**: All operations are in-memory, so performance is limited by CPU, not I/O
 - **Pipelining**: Demonstrates significant throughput gains by batching commands and reducing network round-trips
+- **Version comparison**: Redis 5 and Redis 6 show nearly identical performance (< 5% difference), confirming consistent single-threaded architecture
+
+## Version Comparison Testing
+
+The repository includes test configurations for comparing Redis versions:
+
+- **docker-compose.yml** - Redis 7 (default)
+- **docker-compose.redis6.yml** - Redis 6.2.21
+- **docker-compose.redis5.yml** - Redis 5.0.14
+
+All version tests use identical configuration (1 CPU core, 512MB memory) and benchmark parameters to ensure fair comparison. See `VERSION_COMPARISON.md` for detailed performance analysis across versions.
 
 ## Modifying Benchmarks
 

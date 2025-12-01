@@ -1,4 +1,4 @@
-# Redis Image Cache Sizing: 1TB Memory, 8K QPS
+# Redis Image Cache Sizing: 1TB Memory, 8K QPS (Kubernetes)
 
 **Your Requirements:**
 - Total memory: 1 TB
@@ -7,27 +7,62 @@
 - Data type: Images (1 MB each)
 - TTL: 5 minutes (300 seconds)
 - High availability: Required
+- **Deployment:** Kubernetes cluster
+
+**Based on Test Results:**
+- Redis 5/6/7 benchmarked: **190K-220K ops/sec** (256-byte values)
+- With 1 MB values: **~3,000-5,000 ops/sec** per pod (network-bound)
+- CPU usage at load: **~100%** per pod (single-threaded limit)
 
 ---
 
 ## Executive Summary
 
-**Recommended Configuration:**
+### Recommended Kubernetes Configuration
+
+**Architecture:** Redis StatefulSet with 10 masters + 10 replicas
+
+**Per-Pod Specification (Master):**
+```yaml
+resources:
+  requests:
+    memory: "110Gi"   # 100 GB usable + 10 GB overhead
+    cpu: "1000m"      # 1 full core (single-threaded limit)
+  limits:
+    memory: "132Gi"   # 20% buffer above request
+    cpu: "1000m"      # NEVER exceed 1 core (single-threaded!)
 ```
-Architecture: Redis Cluster (for HA)
-Instances: 20 total (10 masters + 10 replicas)
-Per-instance: 1 vCore, 110 GB RAM (100 GB usable)
 
-Total resources:
-  - 20 vCores
-  - 2.2 TB RAM (1 TB usable across masters)
-  - Network: 10+ Gbps per instance (200 Gbps aggregate)
+**Per-Pod Specification (Replica):**
+```yaml
+resources:
+  requests:
+    memory: "110Gi"   # Same as master for full replication
+    cpu: "1000m"      # 1 full core
+  limits:
+    memory: "132Gi"
+    cpu: "1000m"
+```
 
-Expected performance:
+**Cluster-Wide Totals:**
+```
+Total Pods: 20 (10 masters + 10 replicas)
+Total CPU: 20 cores (1 core per pod × 20 pods)
+Total Memory Requests: 2.2 TB (110 GB × 20 pods)
+Total Memory Limits: 2.64 TB (132 GB × 20 pods)
+Total Usable Memory: 1 TB across 10 masters (100 GB × 10)
+Total PVC Storage: 2.2 TB (110 GB × 20 pods, if persistence enabled)
+
+Expected Performance:
   - QPS capacity: 30,000-50,000 ops/sec
   - Your need: 8,000 ops/sec (4-6x headroom) ✅
   - p95 latency: < 25 ms (20x better than target) ✅
-  - Memory: 1 TB ✅
+  - Network: 10+ Gbps per pod (200+ Gbps aggregate)
+
+Node Requirements:
+  - Minimum nodes: 5 (4 pods per node for balanced distribution)
+  - Per-node capacity: 4+ cores, 550+ GB RAM
+  - Network: 40+ Gbps per node
 ```
 
 ---

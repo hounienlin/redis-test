@@ -1,10 +1,261 @@
 # Complete Redis Cluster Sizing Guide
 
-A comprehensive, step-by-step guide to sizing Redis clusters based on empirical performance testing.
+A comprehensive, step-by-step guide to sizing Redis clusters for **Kubernetes deployments** based on empirical performance testing of Redis 5, 6, and 7.
+
+**Based on Test Results:**
+- Redis 5.0.14, 6.2.21, 7.4.7 benchmarked under identical conditions
+- Single-core throughput: **170K-220K ops/sec** (256-byte values)
+- CPU-bound single-threaded architecture confirmed across all versions
+- Performance differences < 10% between versions
+- Pipelining provides **8-9x** throughput improvement
 
 ---
 
 ## Table of Contents
+
+0. [Kubernetes Pod Specifications](#kubernetes-pod-specifications)
+1. [Quick Start Decision Tree](#quick-start-decision-tree)
+2. [Step-by-Step Sizing Methodology](#step-by-step-sizing-methodology)
+3. [Key Formulas and Calculations](#key-formulas-and-calculations)
+4. [Real-World Examples](#real-world-examples)
+5. [Sizing Strategies](#sizing-strategies)
+6. [Performance Characteristics](#performance-characteristics)
+7. [Cost Optimization](#cost-optimization)
+8. [Validation Checklist](#validation-checklist)
+
+---
+
+## Kubernetes Pod Specifications
+
+All sizing examples in this guide assume **Redis running on Kubernetes**. Each Redis instance runs as a Pod with the following considerations:
+
+### Pod Resource Template
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: redis-master-0
+  labels:
+    app: redis
+    role: master
+spec:
+  containers:
+  - name: redis
+    image: redis:7-alpine  # or redis:6-alpine, redis:5-alpine
+    resources:
+      requests:
+        memory: "50Gi"     # Working memory + overhead
+        cpu: "1000m"       # 1 full CPU core (single-threaded)
+      limits:
+        memory: "60Gi"     # 20% buffer above request
+        cpu: "1000m"       # Don't allocate > 1 core (single-threaded!)
+    volumeMounts:
+    - name: redis-data
+      mountPath: /data
+  volumes:
+  - name: redis-data
+    persistentVolumeClaim:
+      claimName: redis-pvc-master-0
+```
+
+### Critical Resource Constraints
+
+**CPU Allocation:**
+- ⚠️ **NEVER allocate more than 1 CPU core per Redis pod**
+- Redis is single-threaded and cannot use multiple cores for command processing
+- Test results confirm: 1 core = **~100% CPU** at peak load
+- Extra cores provide NO benefit and waste resources
+
+**Memory Allocation:**
+```
+Pod Memory Request = (Working Set ÷ Number of Pods) × 1.2
+Pod Memory Limit = Pod Memory Request × 1.2
+
+Example:
+- Total data: 1 TB
+- Number of master pods: 10
+- Memory per pod = (1 TB ÷ 10) × 1.2 = 120 GB
+- Pod request: memory: "120Gi"
+- Pod limit: memory: "144Gi"
+```
+
+**Storage (PersistentVolumeClaim):**
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-pvc-master-0
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 120Gi  # Match pod memory for AOF/RDB if persistence enabled
+  storageClassName: fast-ssd  # Use SSD for persistence
+```
+
+### Example: 10-Master Redis Cluster on K8s
+
+**Cluster Summary:**
+- **Total Data:** 1 TB
+- **Target QPS:** 8,000 req/sec
+- **Architecture:** 10 masters + 10 replicas = 20 total pods
+
+**Per-Pod Spec (Master):**
+```yaml
+resources:
+  requests:
+    memory: "120Gi"   # (1 TB ÷ 10) × 1.2
+    cpu: "1000m"      # 1 full core (single-threaded limit)
+  limits:
+    memory: "144Gi"   # 20% buffer
+    cpu: "1000m"      # DO NOT EXCEED (single-threaded!)
+```
+
+**Per-Pod Spec (Replica):**
+```yaml
+resources:
+  requests:
+    memory: "120Gi"   # Same as master for full replication
+    cpu: "1000m"      # 1 full core
+  limits:
+    memory: "144Gi"
+    cpu: "1000m"
+```
+
+**Cluster-Wide Totals:**
+```
+Total Pods: 20 (10 masters + 10 replicas)
+Total CPU: 20 cores (1 core per pod × 20 pods)
+Total Memory: 2.4 TB requests (120 GB × 20 pods)
+Total Memory: 2.88 TB limits (144 GB × 20 pods)
+Total PVC Storage: 2.4 TB (120 GB × 20 pods, if persistence enabled)
+
+Node Requirements:
+- Minimum nodes: 5 (assuming 4 pods per node)
+- Per-node capacity: 4+ cores, 600+ GB RAM
+- Network: 10 Gbps+ between nodes
+```
+
+### Sizing Formula for Kubernetes
+
+**Given Requirements:**
+1. Total data size (e.g., 1 TB)
+2. Target QPS (e.g., 8,000 req/sec)
+3. Latency target (e.g., p95 < 500 ms)
+
+**Calculate Pod Count:**
+```python
+# CPU-bound sizing (small values)
+pods_for_qps = total_qps / 190000  # 190K ops/sec per pod (from benchmarks)
+
+# Network-bound sizing (large values, e.g., 1 MB)
+network_per_pod = 1.25 GB/sec  # 10 Gbps ÷ 8
+throughput_per_pod = network_per_pod / avg_value_size
+pods_for_qps = total_qps / throughput_per_pod
+
+# Memory-bound sizing
+pods_for_memory = total_data_size / desired_pod_memory
+
+# Take maximum of the three
+num_masters = max(pods_for_qps, pods_for_memory)
+```
+
+**Calculate Pod Resources:**
+```python
+memory_per_pod = (total_data_size / num_masters) * 1.2
+memory_request = f"{memory_per_pod}Gi"
+memory_limit = f"{memory_per_pod * 1.2}Gi"
+cpu_request = "1000m"  # Always 1 core (single-threaded!)
+cpu_limit = "1000m"    # Always 1 core
+
+pvc_size = memory_per_pod if persistence_enabled else "10Gi"
+```
+
+**Calculate Cluster Totals:**
+```python
+total_pods = num_masters * 2  # Include replicas
+total_cpu_cores = total_pods * 1  # 1 core per pod
+total_memory_requests = memory_per_pod * total_pods
+total_memory_limits = (memory_per_pod * 1.2) * total_pods
+total_pvc_storage = pvc_size * total_pods
+```
+
+### Namespace and Service Example
+
+```yaml
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: redis-cluster
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-cluster
+  namespace: redis-cluster
+spec:
+  clusterIP: None  # Headless service for StatefulSet
+  ports:
+  - port: 6379
+    targetPort: 6379
+    name: redis
+  - port: 16379
+    targetPort: 16379
+    name: redis-cluster
+  selector:
+    app: redis
+---
+# StatefulSet for masters and replicas
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis-cluster
+  namespace: redis-cluster
+spec:
+  serviceName: redis-cluster
+  replicas: 20  # 10 masters + 10 replicas
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        command: ["redis-server", "--cluster-enabled", "yes", "--cluster-config-file", "/data/nodes.conf"]
+        resources:
+          requests:
+            memory: "120Gi"
+            cpu: "1000m"
+          limits:
+            memory: "144Gi"
+            cpu: "1000m"
+        ports:
+        - containerPort: 6379
+          name: redis
+        - containerPort: 16379
+          name: redis-cluster
+        volumeMounts:
+        - name: data
+          mountPath: /data
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 120Gi
+      storageClassName: fast-ssd
+```
+
+---
 
 1. [Quick Start Decision Tree](#quick-start-decision-tree)
 2. [Step-by-Step Sizing Methodology](#step-by-step-sizing-methodology)

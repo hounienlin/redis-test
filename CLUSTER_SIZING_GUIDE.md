@@ -1,26 +1,72 @@
-# Redis Cluster Sizing Guide
+# Redis Cluster Sizing Guide (Kubernetes)
 
-Based on empirical performance testing results from this repository.
+Based on empirical performance testing of Redis 5, 6, and 7 from this repository.
+
+**Test Results Summary:**
+- Redis 5.0.14, 6.2.21, 7.4.7 benchmarked under identical conditions
+- Single-core throughput: **170K-220K ops/sec** (256-byte values)
+- CPU usage at peak load: **~100%** (single-threaded confirmed)
+- Performance difference between versions: **< 10%**
 
 ## Your Cluster Requirements
 
 - **Total Memory Needed:** 120 GB
 - **Latency Target:** 500 ms maximum
-- **Architecture:** 10 Redis containers with 1 vCore each
+- **Architecture:** 10 Redis pods with 1 CPU core each
+- **Deployment:** Kubernetes cluster
 
 ---
 
 ## Recommended Configuration
 
-### Per-Container Specifications
+### Per-Pod Specifications (Kubernetes)
 
 ```yaml
-redis-node:
-  cpus: 1                    # ✅ Perfect for single-threaded Redis
-  memory: 16GB               # 12 GB usable + 4 GB overhead (33%)
+apiVersion: v1
+kind: Pod
+metadata:
+  name: redis-node-0
+  labels:
+    app: redis
+spec:
+  containers:
+  - name: redis
+    image: redis:7-alpine
+    resources:
+      requests:
+        memory: "16Gi"     # 12 GB usable + 4 GB overhead (33%)
+        cpu: "1000m"       # 1 full core (single-threaded limit)
+      limits:
+        memory: "19Gi"     # 20% buffer above request
+        cpu: "1000m"       # DO NOT exceed 1 core (single-threaded!)
+    command: ["redis-server", "--maxmemory", "12gb", "--maxmemory-policy", "allkeys-lru"]
+    volumeMounts:
+    - name: data
+      mountPath: /data
+  volumes:
+  - name: data
+    persistentVolumeClaim:
+      claimName: redis-pvc-node-0
 
-  # Alternative conservative option:
-  # memory: 14GB             # 12 GB usable + 2 GB overhead (17%)
+# Alternative conservative option:
+# requests.memory: "14Gi"  # 12 GB usable + 2 GB overhead (17%)
+# limits.memory: "17Gi"     # 20% buffer
+```
+
+### Cluster-Wide Totals
+
+```
+Total Pods: 10 (standalone instances or 5 masters + 5 replicas)
+Total CPU: 10 cores (1 core per pod × 10 pods)
+Total Memory Requests: 160 GB (16 GB × 10 pods)
+Total Memory Limits: 190 GB (19 GB × 10 pods)
+Total Usable Memory: 120 GB (12 GB × 10 pods)
+Total PVC Storage: 160 GB (16 GB × 10 pods, if persistence enabled)
+
+Node Requirements:
+  - Minimum nodes: 3 (3-4 pods per node)
+  - Per-node capacity: 4+ cores, 65+ GB RAM
+  - Network: 10+ Gbps between nodes
 ```
 
 ### Memory Breakdown

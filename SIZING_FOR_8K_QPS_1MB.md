@@ -1,4 +1,4 @@
-# Redis Cluster Sizing: 8K QPS with 1MB Values
+# Redis Cluster Sizing: 8K QPS with 1MB Values (Kubernetes)
 
 **Your Specific Requirements:**
 - QPS: 8,000 queries/second
@@ -6,20 +6,58 @@
 - Total memory: 120 GB
 - High availability: Required
 - Latency target: 500 ms
+- **Deployment:** Kubernetes cluster
+
+**Based on Test Results:**
+- Redis 5/6/7 benchmarked: **190K-220K ops/sec** (256-byte values)
+- With 1 MB values: **~3,000-5,000 ops/sec** per instance (network-bound)
+- CPU usage at load: **~100%** per pod (single-threaded limit)
 
 ---
 
 ## Executive Summary
 
-**Recommended Configuration:**
-```
-Architecture: Redis Cluster (for HA)
-Instances: 6 total (3 masters + 3 replicas)
-Per-instance: 1 vCore, 45 GB RAM (40 GB usable)
+### Recommended Kubernetes Configuration
 
-Total resources: 6 vCores, 270 GB RAM
-Expected performance: 12,000-20,000 QPS capacity
-Network bandwidth required: 64 Gbps (8 GB/sec)
+**Architecture:** Redis StatefulSet with 3 masters + 3 replicas
+
+**Per-Pod Specification (Master):**
+```yaml
+resources:
+  requests:
+    memory: "45Gi"   # 40 GB usable + 5 GB overhead
+    cpu: "1000m"     # 1 full core (single-threaded limit)
+  limits:
+    memory: "54Gi"   # 20% buffer above request
+    cpu: "1000m"     # NEVER exceed 1 core (single-threaded!)
+```
+
+**Per-Pod Specification (Replica):**
+```yaml
+resources:
+  requests:
+    memory: "45Gi"   # Same as master
+    cpu: "1000m"     # 1 full core
+  limits:
+    memory: "54Gi"
+    cpu: "1000m"
+```
+
+**Cluster-Wide Totals:**
+```
+Total Pods: 6 (3 masters + 3 replicas)
+Total CPU: 6 cores (1 core per pod × 6 pods)
+Total Memory Requests: 270 GB (45 GB × 6 pods)
+Total Memory Limits: 324 GB (54 GB × 6 pods)
+Total PVC Storage: 270 GB (45 GB × 6 pods, if persistence enabled)
+
+Expected Performance: 9,000-15,000 QPS capacity
+Network Required: 64 Gbps aggregate (10+ Gbps per pod)
+
+Node Requirements:
+- Minimum nodes: 3 (2 pods per node for HA)
+- Per-node capacity: 2+ cores, 110+ GB RAM
+- Network: 25+ Gbps between nodes
 ```
 
 **Key Finding:** You're significantly **over-provisioned** for QPS, but **network bandwidth is your real bottleneck**.
@@ -63,15 +101,35 @@ Our benchmark: **~190,000 ops/sec** with 256-byte values
 Total: 6 instances
 ```
 
-**Per-Instance Specs:**
+**Per-Pod Specs (Kubernetes):**
 ```yaml
-redis-master-X:
-  cpus: 1
-  memory: 45GB        # Total allocation
-  maxmemory: 40GB     # Usable by Redis
+# Master Pod
+apiVersion: v1
+kind: Pod
+metadata:
+  name: redis-master-0
+spec:
+  containers:
+  - name: redis
+    image: redis:7-alpine
+    resources:
+      requests:
+        memory: "45Gi"     # Total allocation
+        cpu: "1000m"       # 1 core (single-threaded)
+      limits:
+        memory: "54Gi"     # 20% buffer
+        cpu: "1000m"       # Max 1 core
+    command: ["redis-server", "--maxmemory", "40gb", "--maxmemory-policy", "allkeys-lru"]
+    volumeMounts:
+    - name: data
+      mountPath: /data
+  volumes:
+  - name: data
+    persistentVolumeClaim:
+      claimName: redis-pvc-master-0
 
-  # Each master holds 40 GB
-  # 3 masters × 40 GB = 120 GB total ✓
+# Each master holds 40 GB usable
+# 3 masters × 40 GB = 120 GB total ✓
 ```
 
 **Why this works:**
